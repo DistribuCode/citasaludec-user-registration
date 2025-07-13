@@ -1,29 +1,25 @@
 const amqp = require('amqplib');
 
+let channel;
+
+async function connectRabbitMQ() {
+  const connection = await amqp.connect(process.env.AMQP_URL);
+  channel = await connection.createChannel();
+  await channel.assertQueue('user_created', { durable: true });
+}
+
 async function publishUserCreated(user) {
-  try {
-    // ✅ LOG para verificar exactamente qué enviamos a RabbitMQ
-    console.log('🐰 Enviando a RabbitMQ:', user);
+  if (!channel) await connectRabbitMQ();
 
-    const conn = await amqp.connect('amqp://rabbitmq'); // tu host Docker
-    const channel = await conn.createChannel();
-    const queue = 'user_created';
+  // Asegurar que solo se envía username y password
+  const payload = {
+    username: user.username,
+    password: user.password
+  };
 
-    // Asegura la existencia de la cola
-    await channel.assertQueue(queue, { durable: true });
+  console.log("🔥 Publicando evento a user_created:", payload);
 
-    // Envia el objeto user convertido a string
-    channel.sendToQueue(queue, Buffer.from(JSON.stringify(user)), { persistent: true });
-
-    console.log(`📢 Evento enviado a RabbitMQ: ${JSON.stringify(user)}`);
-
-    // Cierra la conexión con un pequeño timeout para asegurar el envío
-    setTimeout(() => {
-      conn.close();
-    }, 500);
-  } catch (err) {
-    console.error('❌ Error enviando a RabbitMQ:', err);
-  }
+  channel.sendToQueue('user_created', Buffer.from(JSON.stringify(payload)));
 }
 
 module.exports = { publishUserCreated };
