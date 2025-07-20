@@ -37,9 +37,9 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔑 Decode EC2 SSH key
+      - name: 🔑 Write EC2 SSH key
         run: |
-          echo "${{ secrets.EC2_KEY }}" | base64 -d > auth-key.pem
+          echo "${{ secrets.EC2_KEY }}" > auth-key.pem
           chmod 600 auth-key.pem
 
       - name: 🚀 Deploy to EC2 via SSH
