@@ -1,4 +1,4 @@
-name: Build and Push to Docker Hub - user-registration
+name: Build and Deploy - user-registration
 
 on:
   push:
@@ -28,3 +28,63 @@ jobs:
           context: .
           push: true
           tags: jeffri1997/user-registration:qa
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔑 Decode EC2 SSH key
+        run: |
+          echo "${{ secrets.EC2_KEY }}" | base64 -d > auth-key.pem
+          chmod 600 auth-key.pem
+
+      - name: 🚀 Deploy to EC2 via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -i auth-key.pem ec2-user@${{ secrets.EC2_HOST }} << 'EOF'
+            docker network create my_network || true
+
+            # RabbitMQ
+            docker stop rabbitmq || true
+            docker rm rabbitmq || true
+            docker run -d \
+              --name rabbitmq \
+              --network my_network \
+              -p 5672:5672 -p 15672:15672 \
+              rabbitmq:3-management
+
+            # DB del microservicio
+            docker stop registration-db || true
+            docker rm registration-db || true
+            docker run -d \
+              --name registration-db \
+              --network my_network \
+              -e POSTGRES_DB=users_db \
+              -e POSTGRES_USER=postgres \
+              -e POSTGRES_PASSWORD=mysecretpassword \
+              -v registration_data:/var/lib/postgresql/data \
+              postgres:15
+
+            sleep 10
+
+            # Microservicio
+            docker stop user-registration || true
+            docker rm user-registration || true
+            docker pull jeffri1997/user-registration:qa
+            docker run -d \
+              --name user-registration \
+              --network my_network \
+              -p 4001:4001 \
+              -e PORT=4001 \
+              -e DB_HOST=registration-db \
+              -e DB_PORT=5432 \
+              -e DB_USER=postgres \
+              -e DB_PASSWORD=mysecretpassword \
+              -e DB_NAME=users_db \
+              -e BCRYPT_SALT_ROUNDS=10 \
+              -e AMQP_URL=amqp://rabbitmq \
+              jeffri1997/user-registration:qa
+          EOF
