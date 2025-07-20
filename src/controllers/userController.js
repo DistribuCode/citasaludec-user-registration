@@ -19,7 +19,7 @@ exports.registerUser = async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username,
-        password: hashedPassword
+        password
       })
     });
 
