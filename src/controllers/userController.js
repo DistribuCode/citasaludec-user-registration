@@ -16,7 +16,7 @@ exports.registerUser = async (req, res) => {
     // 🔥 Ahora sí, enviar el password a auth-service
     await publishUserCreated({
       username,
-      password: hashedPassword
+      password
     });
 
     res.status(201).json({ message: 'User registered', userId });
